@@ -1,0 +1,27 @@
+# Secrets
+.env
+.env.*
+secrets/
+*.key
+*.pem
+wallet*.json
+
+# Data (large, regenerable)
+/data/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+
+# Claude Code personal files
+CLAUDE.local.md
+.claude/settings.local.json
+
+# Scratch
+research/scratch/
+
+# Backtest session outputs (regenerable)
+research/sessions/

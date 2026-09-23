@@ -1,0 +1,52 @@
+[project]
+name = "hlbot"
+version = "0.1.0"
+description = "Systematic trading research + backtester for Hyperliquid perps"
+readme = "CLAUDE.md"
+requires-python = ">=3.11"
+dependencies = [
+    "polars",
+    "hyperliquid-python-sdk",
+    "tzdata>=2026.4",
+]
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "ruff",
+    "pyright",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/hlbot"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "N", "RUF", "PL"]
+ignore = [
+    "PLR0913", # engine/config constructors legitimately take many args
+    "PLR2004", # magic numbers are fine in tests and hand-checked examples
+    "SIM108",  # explicit if/else is often clearer than a long ternary
+]
+
+[tool.pyright]
+include = ["src", "tests"]
+typeCheckingMode = "strict"
+pythonVersion = "3.11"
+venvPath = "."
+venv = ".venv"
+# polars' own signatures contain Unknown parts (e.g. DataFrame.filter/select), which strict
+# mode reports on every call. Unknown types still get caught where they reach our variables.
+reportUnknownMemberType = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
