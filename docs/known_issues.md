@@ -79,3 +79,20 @@ Last reviewed: 2026-09-25 (fifth backtest-reviewer pass: first engine version ju
 - The 30–40% bot-pot hard floor (stop and reassess). Belongs in live/paper monitoring.
 - Walk-forward testing. The 70/30 split is done by hand for now; pass `split="train"` or
   `split="test"` to `run_session` so it's recorded in the manifest.
+
+## Recorder data (`data/live/`, see docs/recorder.md)
+- **Check every day before use:** `uv run python -m hlbot.data.recorder.quality`. Treat BAD
+  days as missing; for WARN days, read the reasons (usually a gap to exclude).
+- **`ctx` has no exchange timestamp.** Its time is `sample_time` (local clock, NTP-synced);
+  `exch_time_ref` is only a proxy. Clock skew per day is in the quality report.
+- **`ctx.funding` is the live estimate for the hour in progress**, not the settled rate. It
+  moves during the hour. Realized rates come from REST `fundingHistory`. When joining funding
+  into a backtest, use the settled series, not the last ctx sample.
+- **HlPerp `next_funding_time` in `funding_pred` is stale by at least one interval** (API issue).
+  Use the next top of the hour instead.
+- **Sampled book rows are up to ~5 s old** (`age_ms`): the websocket pushes a book only about
+  every 5 s. Don't treat a book row as the book at exactly `sample_time`.
+- **Trades are exact only inside covered windows.** Use raw trades or `trades_1m` rows with
+  `complete = true`; `trades_lost` gap rows mark windows where trades may be missing.
+- **Late trades** (arriving after their minute closed, heartbeat `late=`) are in the raw
+  `trades` stream but not in `trades_1m`. Rebuild buckets from raw trades if exact volume matters.

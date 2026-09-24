@@ -1,0 +1,37 @@
+# systemd unit for the Hyperliquid public market-data recorder. See docs/recorder.md.
+# Install: sudo cp deploy/hlbot-recorder.service /etc/systemd/system/
+#          sudo systemctl daemon-reload && sudo systemctl enable --now hlbot-recorder
+
+[Unit]
+Description=Hyperliquid public market-data recorder (hlbot)
+Wants=network-online.target time-sync.target
+After=network-online.target time-sync.target
+# Without this, systemd stops restarting after 5 failures in 10s (e.g. a long network
+# outage at boot) and the service stays dead despite Restart=always.
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=hlbot
+Group=hlbot
+WorkingDirectory=/opt/hlbot/app
+# The venv's python directly, not `uv run`: nothing is resolved or downloaded on (re)start.
+ExecStart=/opt/hlbot/app/.venv/bin/python -m hlbot.data.recorder --config config/recorder.toml
+Restart=always
+RestartSec=5
+# SIGTERM -> the recorder flushes buffers, saves state and exits (well under 30s).
+KillSignal=SIGTERM
+TimeoutStopSec=30
+Environment=PYTHONUNBUFFERED=1
+
+# Hardening. The recorder only needs outbound HTTPS/WSS and write access to its data dir.
+# The hlbot user's home is /opt/hlbot (not under /home), so ProtectHome doesn't hide the
+# uv-managed Python interpreter that .venv/bin/python links to.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/hlbot/app/data
+
+[Install]
+WantedBy=multi-user.target
