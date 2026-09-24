@@ -25,6 +25,7 @@ class RandomBaseline:
     long_prob: float
     seed: int
     exit_rule: ExitRule
+    warmup_bars: int = 1  # set to the strategy's warm-up so both trade the same period
     name: str = "random_baseline"
     _rng: random.Random = field(init=False, repr=False)
 
@@ -36,7 +37,12 @@ class RandomBaseline:
 
     @property
     def params(self) -> Mapping[str, object]:
-        return {"entry_prob": self.entry_prob, "long_prob": self.long_prob, "seed": self.seed}
+        return {
+            "entry_prob": self.entry_prob,
+            "long_prob": self.long_prob,
+            "seed": self.seed,
+            "warmup_bars": self.warmup_bars,
+        }
 
     def on_bar(self, history: pl.DataFrame) -> Direction | None:
         # Bars read: none. Draw both numbers every call so the RNG stream doesn't depend

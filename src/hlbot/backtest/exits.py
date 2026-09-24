@@ -30,19 +30,33 @@ class ExitRule:
         if (self.stop_atr_mult is None) == (self.stop_pct is None):
             raise ValueError("set exactly one of stop_atr_mult or stop_pct")
 
+    @property
+    def uses_atr(self) -> bool:
+        return self.stop_atr_mult is not None
+
+    @property
+    def warmup_bars(self) -> int:
+        """Bars of history needed before a stop can be computed (ATR's first value)."""
+        return self.atr_period if self.uses_atr else 1
+
     def stop_distance(self, history: pl.DataFrame, entry_price: float) -> float | None:
-        """Absolute price distance from entry to stop.
+        """Absolute price distance from entry to stop (reference implementation).
 
         Bars read: `history` only (the engine passes bars 0..signal_bar). Returns None when
-        the ATR has not warmed up yet.
+        the ATR has not warmed up yet. The engine uses `stop_distance_from_atr` with a
+        precomputed ATR series instead; a test checks both give the same stops.
         """
+        last_atr = atr(history, self.atr_period)[-1] if self.uses_atr else None
+        return self.stop_distance_from_atr(last_atr, entry_price)
+
+    def stop_distance_from_atr(self, atr_value: float | None, entry_price: float) -> float | None:
+        """Same as `stop_distance`, given the ATR value at the signal bar."""
         if self.stop_pct is not None:
             return entry_price * self.stop_pct
         assert self.stop_atr_mult is not None
-        last_atr = atr(history, self.atr_period)[-1]
-        if last_atr is None:
+        if atr_value is None:
             return None
-        return float(last_atr) * self.stop_atr_mult
+        return atr_value * self.stop_atr_mult
 
     def levels(
         self, direction: Direction, entry_price: float, stop_distance: float

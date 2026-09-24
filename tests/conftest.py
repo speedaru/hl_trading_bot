@@ -57,6 +57,7 @@ class AlwaysLong:
     """Goes long every time it is asked; records exactly what history it saw."""
 
     exit_rule: ExitRule
+    warmup_bars: int = 1
     name: str = "always_long"
     seen: list[tuple[int, datetime]] = field(default_factory=lambda: [])
 
@@ -74,6 +75,7 @@ class LongOnce:
     """Goes long on the first call only."""
 
     exit_rule: ExitRule
+    warmup_bars: int = 1
     name: str = "long_once"
     fired: bool = False
 
@@ -86,6 +88,27 @@ class LongOnce:
             return None
         self.fired = True
         return Direction.LONG
+
+
+@dataclass
+class Scripted:
+    """Signals `signals[t]` when called at bar t (i.e. history has t+1 rows)."""
+
+    exit_rule: ExitRule
+    signals: dict[int, Direction]
+    warmup_bars: int = 1
+    name: str = "scripted"
+
+    @property
+    def params(self) -> Mapping[str, object]:
+        return {}
+
+    def on_bar(self, history: pl.DataFrame) -> Direction | None:
+        return self.signals.get(history.height - 1)
+
+
+# Generic coin with 20x max leverage on the exchange (maintenance margin 2.5%).
+TEST_COIN_MAX_LEVERAGE = 20.0
 
 
 @pytest.fixture

@@ -18,6 +18,8 @@ class SkipReason(StrEnum):
     LIQUIDATION = "liquidation_too_close"
     DAILY_LOSS_RAIL = "daily_loss_rail"
     WEEKLY_LOSS_RAIL = "weekly_loss_rail"
+    TRADES_PER_DAY = "max_trades_per_day"
+    STOP_COOLDOWN = "stop_cooldown"
 
 
 class ExitReason(StrEnum):

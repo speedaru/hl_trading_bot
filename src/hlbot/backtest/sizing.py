@@ -17,6 +17,21 @@ class SizeResult:
     round_trip_cost_r: float
 
 
+def liquidation_distance_pct(leverage: float, maintenance_margin: float, *, long: bool) -> float:
+    """Distance from entry to liquidation price, as a fraction of entry price.
+
+    From Hyperliquid's formula (docs: trading/liquidations), cross margin, one position:
+        liq_price = price - side * margin_available / position_size / (1 - l * side)
+        margin_available = account_value - maintenance_margin_required
+    With account_value = equity, l = maintenance margin fraction m, this simplifies to
+        long:  (1/leverage - m) / (1 - m)
+        short: (1/leverage - m) / (1 + m)     <- shorts get liquidated slightly sooner
+    Ignores fees and unrealized PnL of other positions (there are none in this engine).
+    """
+    side = 1 if long else -1
+    return (1 / leverage - maintenance_margin) / (1 - side * maintenance_margin)
+
+
 def size_position(
     equity: float,
     entry_price: float,
@@ -26,11 +41,12 @@ def size_position(
 ) -> SizeResult | SkipReason:
     """notional = equity * risk_pct / stop_distance_pct, then apply caps and filters.
 
-    - Leverage above `max_leverage`: notional is cut to the cap (real risk becomes < risk_pct).
-    - Liquidation distance (cross margin approx) = 1/leverage - maintenance margin.
-      Skip if it is not at least `min_liq_to_stop_ratio` x the stop distance.
+    - Leverage above min(our cap, coin's exchange max): notional is cut to the cap
+      (real risk becomes < risk_pct).
+    - Liquidation must be >= `min_liq_to_stop_ratio` x the stop distance, else skip.
     - Fee filter: round-trip cost (taker + slippage on both legs) in R; skip if > max_cost_r.
       Note cost in R = cost_pct / stop_distance_pct, so it doesn't depend on size at all.
+    Direction is implied by the stop: stop below entry = long.
     """
     if equity <= 0 or entry_price <= 0:
         raise ValueError("equity and entry_price must be positive")
@@ -45,12 +61,15 @@ def size_position(
 
     notional = equity * risk.risk_pct / stop_distance_pct
     leverage = notional / equity
-    capped = leverage > risk.max_leverage
+    cap = risk.effective_max_leverage
+    capped = leverage > cap
     if capped:
-        notional = equity * risk.max_leverage
-        leverage = risk.max_leverage
+        notional = equity * cap
+        leverage = cap
 
-    liq_distance_pct = 1 / leverage - risk.maintenance_margin_frac
+    liq_distance_pct = liquidation_distance_pct(
+        leverage, risk.maintenance_margin_frac, long=stop_price < entry_price
+    )
     if liq_distance_pct < risk.min_liq_to_stop_ratio * stop_distance_pct:
         return SkipReason.LIQUIDATION
 

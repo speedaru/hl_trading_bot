@@ -11,13 +11,13 @@ from hlbot.backtest.config import CostConfig, RiskConfig
 from hlbot.backtest.engine import BacktestEngine
 from hlbot.backtest.exits import ExitRule
 from hlbot.backtest.session import compare_sessions, load_session, run_session
-from tests.conftest import AlwaysLong
+from tests.conftest import TEST_COIN_MAX_LEVERAGE, AlwaysLong
 
 RULE = ExitRule(stop_atr_mult=None, stop_pct=0.02, target_r=2.0)
 COSTS = CostConfig()
-RISK = RiskConfig()
+RISK = RiskConfig(coin_max_leverage=TEST_COIN_MAX_LEVERAGE)
 N_BASELINE = 20  # fewer than the default 200 to keep tests fast
-SESSION_FILES = ("manifest.json", "trades.parquet", "metrics.json")
+SESSION_FILES = ("manifest.json", "trades.parquet", "equity.parquet", "metrics.json")
 
 
 def _run(tmp_path: Path, data: pl.DataFrame) -> tuple[Path, AlwaysLong]:
@@ -47,6 +47,7 @@ def test_session_files_created(tmp_path: Path, ohlcv_100: pl.DataFrame) -> None:
     assert manifest["data"]["n_bars"] == 100
     assert manifest["costs"]["taker_fee"] == COSTS.taker_fee
     assert "commit" in manifest["git"]
+    assert manifest["split"] is None  # not labelled train/test in this test
 
     session = load_session(path)
     assert session.trades.height > 0

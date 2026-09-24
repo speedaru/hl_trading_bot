@@ -3,8 +3,9 @@
 research/sessions/<session-id>/
     manifest.json      what was run (strategy, params, data range, configs, git commit)
     trades.parquet     one row per trade
+    equity.parquet     mark-to-market equity at every bar close
     metrics.json       summary + where the strategy ranks among the random-baseline runs
-    random_baseline/   manifest/trades/metrics of one representative baseline run (seed 0)
+    random_baseline/   manifest/trades/equity/metrics of one representative run (seed 0)
         distribution.parquet   one row of metrics per baseline seed
 
 Files are written into `<id>.tmp/` and the folder is renamed only when complete, so a
@@ -17,7 +18,7 @@ import subprocess
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import polars as pl
 
@@ -89,9 +90,14 @@ def run_session(
     sessions_root: Path = DEFAULT_SESSIONS_ROOT,
     initial_equity: float = 10_000.0,
     n_baseline_runs: int = DEFAULT_BASELINE_RUNS,
+    split: Literal["train", "test"] | None = None,
     now: datetime | None = None,
 ) -> Path:
-    """Run the strategy and its random baselines, write the session folder, return its path."""
+    """Run the strategy and its random baselines, write the session folder, return its path.
+
+    `split` records which part of the 70/30 time split `data` is, so a session run on the
+    test set is visible in its manifest (the test set may be touched once).
+    """
     if n_baseline_runs < 1:
         raise ValueError("n_baseline_runs must be >= 1")
     now = now or datetime.now(UTC)
@@ -109,11 +115,12 @@ def run_session(
         return engine.run()
 
     result = run(strategy)
-    metrics = compute_metrics(result.trades, initial_equity, result.skips)
+    metrics = _metrics(result)
 
-    # Baseline: same exits/sizing/costs, entering as often (per flat bar) as the strategy did
-    # and with the same long/short mix. Many seeds, because one random run is mostly noise.
-    # Seeds are 0..n-1 regardless of params, so tuning params can't reshuffle the baseline.
+    # Baseline: same exits/sizing/costs/warm-up, entering as often (per post-warm-up flat
+    # bar) as the strategy did, with the same long/short mix. Many seeds, because one random
+    # run is mostly noise. Seeds are 0..n-1 regardless of params, so tuning params can't
+    # reshuffle the baseline.
     entry_prob = result.n_signals / result.n_strategy_calls if result.n_strategy_calls else 0.0
     long_prob = result.n_long_signals / result.n_signals if result.n_signals else 0.5
     baselines: list[RandomBaseline] = []
@@ -121,12 +128,16 @@ def run_session(
     base_metrics: list[dict[str, object]] = []
     for seed in range(n_baseline_runs):
         baseline = RandomBaseline(
-            entry_prob=entry_prob, long_prob=long_prob, seed=seed, exit_rule=strategy.exit_rule
+            entry_prob=entry_prob,
+            long_prob=long_prob,
+            seed=seed,
+            exit_rule=strategy.exit_rule,
+            warmup_bars=result.warmup_bars,
         )
         base_result = run(baseline)
         baselines.append(baseline)
         base_results.append(base_result)
-        base_metrics.append(compute_metrics(base_result.trades, initial_equity, base_result.skips))
+        base_metrics.append(_metrics(base_result))
 
     comparison = baseline_comparison(metrics, base_metrics)
     comparison["entry_prob"] = entry_prob
@@ -150,6 +161,7 @@ def run_session(
     common: dict[str, object] = {
         "symbol": symbol,
         "timeframe": timeframe,
+        "split": split,
         "costs": asdict(costs),
         "risk": asdict(risk),
         "exit_rule": asdict(strategy.exit_rule),
@@ -175,8 +187,8 @@ def run_session(
     }
 
     tmp_dir.mkdir(parents=True)
-    _write_run(tmp_dir, manifest, metrics, result.trades)
-    _write_run(tmp_dir / BASELINE_DIR, base_manifest, base_metrics[0], base_results[0].trades)
+    _write_run(tmp_dir, manifest, metrics, result)
+    _write_run(tmp_dir / BASELINE_DIR, base_manifest, base_metrics[0], base_results[0])
     distribution.write_parquet(tmp_dir / BASELINE_DIR / "distribution.parquet")
     tmp_dir.rename(final_dir)
     return final_dir
@@ -216,6 +228,10 @@ def _as_float(v: object) -> float | None:
     return float(v) if isinstance(v, int | float) else None
 
 
+def _metrics(result: BacktestResult) -> dict[str, object]:
+    return compute_metrics(result.trades, result.initial_equity, result.skips, result.equity_curve)
+
+
 def _data_info(result: BacktestResult) -> dict[str, object]:
     return {
         "data": {
@@ -224,6 +240,7 @@ def _data_info(result: BacktestResult) -> dict[str, object]:
             "n_bars": result.n_bars,
             "bar_hours": result.bar_hours,
         },
+        "warmup_bars": result.warmup_bars,
         "n_strategy_calls": result.n_strategy_calls,
         "n_signals": result.n_signals,
         "n_long_signals": result.n_long_signals,
@@ -232,9 +249,10 @@ def _data_info(result: BacktestResult) -> dict[str, object]:
 
 
 def _write_run(
-    folder: Path, manifest: dict[str, object], metrics: dict[str, object], trades: pl.DataFrame
+    folder: Path, manifest: dict[str, object], metrics: dict[str, object], result: BacktestResult
 ) -> None:
     folder.mkdir(parents=True, exist_ok=True)
     (folder / "manifest.json").write_text(json.dumps(manifest, indent=2, default=str))
     (folder / "metrics.json").write_text(json.dumps(metrics, indent=2, default=str))
-    trades.write_parquet(folder / "trades.parquet")
+    result.trades.write_parquet(folder / "trades.parquet")
+    result.equity_curve.write_parquet(folder / "equity.parquet")

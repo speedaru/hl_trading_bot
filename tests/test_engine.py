@@ -9,20 +9,27 @@ import pytest
 from hlbot.backtest.config import CostConfig, RiskConfig
 from hlbot.backtest.engine import BacktestEngine, parse_timeframe
 from hlbot.backtest.exits import ExitRule
-from tests.conftest import LongOnce, bars_from_prices
+from hlbot.backtest.types import Direction
+from hlbot.strategies.base import Strategy
+from tests.conftest import TEST_COIN_MAX_LEVERAGE, LongOnce, Scripted, bars_from_prices
 
 NO_SLIP = CostConfig(slippage_bps=0.0, default_funding_rate_hourly=0.0)
 RULE = ExitRule(stop_atr_mult=None, stop_pct=0.02, target_r=2.0)  # stop 98, target 104
 FLAT = (100.0, 100.0, 100.0, 100.0)
 
 
+RISK = RiskConfig(coin_max_leverage=TEST_COIN_MAX_LEVERAGE)
+
+
 def run(
     prices: list[tuple[float, float, float, float]],
     rule: ExitRule = RULE,
     costs: CostConfig = NO_SLIP,
+    strategy: Strategy | None = None,
 ) -> list[dict[str, Any]]:
+    """Run on hand-built hourly bars; by default goes long once at bar 0."""
     data = bars_from_prices(prices)
-    engine = BacktestEngine(data, LongOnce(rule), costs, RiskConfig(), timeframe="1h")
+    engine = BacktestEngine(data, strategy or LongOnce(rule), costs, RISK, timeframe="1h")
     return engine.run().trades.to_dicts()
 
 
@@ -62,6 +69,55 @@ def test_time_stop_exits_at_close() -> None:
     assert trade["exit_reason"] == "time_stop"
     assert trade["exit_bar"] == 2  # entry bar 1 counts as bar 1 held
     assert trade["exit_price"] == pytest.approx(100.5)
+
+
+def test_long_target_gap_exits_at_open() -> None:
+    (trade,) = run([FLAT, FLAT, (105.0, 106.0, 104.5, 105.5)])
+    assert trade["exit_reason"] == "target"
+    assert trade["exit_price"] == pytest.approx(105.0)  # better than the 104 target
+
+
+# ---------------------------------------------------------------- short side
+def short_once(rule: ExitRule = RULE) -> Scripted:
+    return Scripted(rule, {0: Direction.SHORT})  # short: stop 102, target 96
+
+
+def test_short_bar_touching_stop_and_target_counts_as_stop() -> None:
+    (trade,) = run([FLAT, (100.0, 103.0, 95.0, 100.0), FLAT], strategy=short_once())
+    assert trade["direction"] == "short"
+    assert trade["stop_price"] == pytest.approx(102.0)
+    assert trade["exit_reason"] == "stop"
+    assert trade["exit_price"] == pytest.approx(102.0)
+    assert trade["gross_pnl"] < 0
+
+
+def test_short_target_hit() -> None:
+    (trade,) = run([FLAT, (100.0, 100.5, 95.5, 96.0), FLAT], strategy=short_once())
+    assert trade["exit_reason"] == "target"
+    assert trade["exit_price"] == pytest.approx(96.0)
+    fees_r = (0.00045 * 100 + 0.00045 * 96) / 2.0
+    assert trade["r_multiple"] == pytest.approx(2.0 - fees_r)
+
+
+def test_short_gap_through_stop_exits_at_open() -> None:
+    (trade,) = run([FLAT, FLAT, (105.0, 106.0, 104.0, 105.0)], strategy=short_once())
+    assert trade["exit_reason"] == "stop"
+    assert trade["exit_price"] == pytest.approx(105.0)
+
+
+def test_short_slippage_is_adverse() -> None:
+    # 5 bps: round trip 0.19% = 0.095R, just under the 0.1R fee filter
+    costs = CostConfig(slippage_bps=5.0, default_funding_rate_hourly=0.0)
+    (trade,) = run([FLAT, FLAT, FLAT], costs=costs, strategy=short_once())
+    assert trade["entry_price"] == pytest.approx(100.0 * (1 - 0.0005))  # sells lower
+    assert trade["exit_price"] == pytest.approx(100.0 * (1 + 0.0005))  # buys back higher
+
+
+def test_short_receives_positive_funding() -> None:
+    costs = CostConfig(slippage_bps=0.0, default_funding_rate_hourly=0.0001)
+    (trade,) = run([FLAT, FLAT, FLAT], costs=costs, strategy=short_once())
+    assert trade["funding"] == pytest.approx(-2 * trade["qty"] * 100.0 * 0.0001)
+    assert trade["net_pnl"] > trade["gross_pnl"] - trade["fees"]  # funding helped
 
 
 FUNDED = CostConfig(slippage_bps=0.0, default_funding_rate_hourly=0.0001)
@@ -110,7 +166,7 @@ def test_open_position_closed_at_end_of_data() -> None:
 
 # ---------------------------------------------------------------- data validation
 def _engine(data: pl.DataFrame, timeframe: str = "1h") -> BacktestEngine:
-    return BacktestEngine(data, LongOnce(RULE), NO_SLIP, RiskConfig(), timeframe=timeframe)
+    return BacktestEngine(data, LongOnce(RULE), NO_SLIP, RISK, timeframe=timeframe)
 
 
 def test_parse_timeframe() -> None:

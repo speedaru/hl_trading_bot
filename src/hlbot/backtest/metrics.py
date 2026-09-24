@@ -5,26 +5,45 @@ import statistics
 import polars as pl
 
 
+def max_drawdown_pct(equity: list[float]) -> float:
+    """Largest peak-to-trough fall, as a fraction of the peak (0.25 = -25%)."""
+    peak = equity[0] if equity else 0.0
+    worst = 0.0
+    for e in equity:
+        peak = max(peak, e)
+        worst = max(worst, 1 - e / peak)
+    return worst
+
+
 def compute_metrics(
-    trades: pl.DataFrame, initial_equity: float, skips: dict[str, int]
+    trades: pl.DataFrame,
+    initial_equity: float,
+    skips: dict[str, int],
+    equity_curve: pl.DataFrame | None = None,
 ) -> dict[str, object]:
     """Per-run summary. All R values are net of costs.
 
     - expectancy_r: mean R per trade (the number that has to be > 0 after costs).
-    - max_drawdown_pct: largest peak-to-trough fall of closed-trade equity.
-    - max_drawdown_r: same, measured in cumulative R (independent of position sizing).
+    - max_drawdown_pct: largest peak-to-trough fall of mark-to-market equity (bar closes,
+      open positions included). Falls back to closed-trade equity if no curve is given.
+    - max_drawdown_closed_pct: same on closed-trade equity only (understates risk).
+    - max_drawdown_r: drawdown of cumulative R (independent of position sizing).
+    - end_of_data trades are artificial exits; they count in expectancy_r but are also
+      reported separately so they can be judged on their own.
     """
     n = trades.height
-    r = trades["r_multiple"].to_list() if n else []
+    r: list[float] = trades["r_multiple"].to_list() if n else []
     wins = [x for x in r if x > 0]
     losses = [x for x in r if x <= 0]
+    reasons: list[str] = trades["exit_reason"].to_list() if n else []
+    r_real_exits = [x for x, why in zip(r, reasons, strict=True) if why != "end_of_data"]
 
-    equity = [initial_equity, *trades["equity_after"].to_list()]
-    peak = equity[0]
-    max_dd_pct = 0.0
-    for e in equity:
-        peak = max(peak, e)
-        max_dd_pct = max(max_dd_pct, 1 - e / peak)
+    closed_equity: list[float] = [initial_equity, *trades["equity_after"].to_list()]
+    mtm_equity: list[float] = (
+        [initial_equity, *equity_curve["equity"].to_list()]
+        if equity_curve is not None
+        else closed_equity
+    )
 
     cum = 0.0
     peak_r = 0.0
@@ -41,8 +60,13 @@ def compute_metrics(
         "avg_win_r": sum(wins) / len(wins) if wins else None,
         "avg_loss_r": sum(losses) / len(losses) if losses else None,
         "total_r": sum(r),
-        "total_return_pct": equity[-1] / initial_equity - 1,
-        "max_drawdown_pct": max_dd_pct,
+        "n_end_of_data_exits": n - len(r_real_exits),
+        "expectancy_r_excl_end_of_data": (
+            sum(r_real_exits) / len(r_real_exits) if r_real_exits else None
+        ),
+        "total_return_pct": closed_equity[-1] / initial_equity - 1,
+        "max_drawdown_pct": max_drawdown_pct(mtm_equity),
+        "max_drawdown_closed_pct": max_drawdown_pct(closed_equity),
         "max_drawdown_r": max_dd_r,
         "total_fees": float(trades["fees"].sum()) if n else 0.0,
         "total_slippage": float(trades["slippage"].sum()) if n else 0.0,
