@@ -24,6 +24,7 @@ Do not write order-placing code unless I explicitly say we are starting the live
 - `src/hlbot/strategies/` – one file per strategy, plus `random_baseline.py`
 - `src/hlbot/live/` – (later) execution, risk rails, reconciliation
 - `research/` – notebooks/scripts for experiments; `docs/research_log.md` logs every test
+- `docs/known_issues.md` – backtester approximations and open items; check before trusting results
 
 ## How to work with me
 - I am learning. When you introduce a trading/stats concept or a non-obvious
