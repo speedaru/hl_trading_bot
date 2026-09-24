@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(uv sync)",
+      "Bash(uv run pytest *)",
+      "Bash(uv run ruff *)",
+      "Bash(uv run pyright *)",
+      "Bash(uv run python research/*)",
+      "Bash(git status)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "WebFetch(domain:hyperliquid.gitbook.io)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:data.binance.vision)"
+    ],
+    "ask": [
+      "Bash(uv add *)",
+      "Bash(pip install *)",
+      "Bash(git push *)",
+      "Bash(git commit *)",
+      "Bash(git add *)"
+    ],
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./secrets/**)",
+      "Read(**/*.key)",
+      "Read(**/*.pem)",
+      "Read(**/wallet*.json)"
+    ]
+  }
+}
