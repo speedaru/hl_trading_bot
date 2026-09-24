@@ -1,0 +1,60 @@
+[
+ [
+  "BTC",
+  [
+   [
+    "BinPerp",
+    {
+     "fundingRate": "-0.00000657",
+     "nextFundingTime": 1790294400000,
+     "fundingIntervalHours": 8
+    }
+   ],
+   [
+    "HlPerp",
+    {
+     "fundingRate": "0.0000125",
+     "nextFundingTime": 1790290800000,
+     "fundingIntervalHours": 1
+    }
+   ],
+   [
+    "BybitPerp",
+    {
+     "fundingRate": "0.0000211",
+     "nextFundingTime": 1790294400000,
+     "fundingIntervalHours": 8
+    }
+   ]
+  ]
+ ],
+ [
+  "SOL",
+  [
+   [
+    "BinPerp",
+    {
+     "fundingRate": "-0.00006561",
+     "nextFundingTime": 1790294400000,
+     "fundingIntervalHours": 8
+    }
+   ],
+   [
+    "HlPerp",
+    {
+     "fundingRate": "0.0000125",
+     "nextFundingTime": 1790290800000,
+     "fundingIntervalHours": 1
+    }
+   ],
+   [
+    "BybitPerp",
+    {
+     "fundingRate": "-0.00013052",
+     "nextFundingTime": 1790294400000,
+     "fundingIntervalHours": 8
+    }
+   ]
+  ]
+ ]
+]

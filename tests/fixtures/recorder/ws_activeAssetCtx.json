@@ -1,0 +1,21 @@
+{
+ "channel": "activeAssetCtx",
+ "data": {
+  "coin": "SOL",
+  "ctx": {
+   "funding": "0.0000125",
+   "openInterest": "5927067.9199999999",
+   "prevDayPx": "115.04",
+   "dayNtlVlm": "307725516.761300385",
+   "premium": "-0.00030003",
+   "oraclePx": "116.655",
+   "markPx": "116.61",
+   "midPx": "116.615",
+   "impactPxs": [
+    "116.61",
+    "116.62"
+   ],
+   "dayBaseVlm": "2672055.5900000003"
+  }
+ }
+}

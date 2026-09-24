@@ -1,0 +1,47 @@
+# Hyperliquid market-data recorder. Public data only: no wallet, no keys.
+# Run: uv run python -m hlbot.data.recorder --config config/recorder.toml
+# Relative paths resolve against the working directory (systemd WorkingDirectory on the VPS).
+
+coins = ["BTC", "ETH", "SOL"]
+data_dir = "data/live"
+log_file = "data/live/_meta/recorder.log"  # rotating; stdout gets the same lines
+
+[endpoints]
+ws_url = "wss://api.hyperliquid.xyz/ws"
+rest_url = "https://api.hyperliquid.xyz"
+
+[cadence]
+ctx_s = 60            # funding, OI, mark/oracle/mid, premium
+funding_pred_s = 60   # predictedFundings (HL + Binance + Bybit), REST only
+heartbeat_s = 60
+
+# One websocket connection per book stream: l2Book messages don't say which nSigFigs they
+# were subscribed with, so two variants of one coin can't share a connection.
+[[books]]
+stream = "book"
+levels = 10
+interval_s = 30
+# n_sig_figs omitted = full precision (tick-level levels)
+
+[[books]]
+stream = "book_coarse"
+levels = 10
+interval_s = 30
+n_sig_figs = 4        # BTC ~84k -> $10 buckets -> 10 levels span ~12 bps
+
+[trades]
+store_raw = true      # every trade incl. [buyer, seller] addresses
+bucket_grace_s = 10   # wait this long after a minute ends before closing its bucket
+
+[flush]
+max_rows = 2000
+max_seconds = 60      # a crash loses at most this much buffered data
+
+[ws]
+ping_s = 20           # app-level {"method":"ping"}; server drops idle clients after 60s
+stale_s = 15          # no message at all for this long -> force reconnect
+backoff_initial_s = 1
+backoff_max_s = 60
+stable_reset_s = 60   # connection up this long -> backoff resets
+rest_stale_s = 15     # WS value older than this at sample time -> sample via REST instead
+rest_timeout_s = 10

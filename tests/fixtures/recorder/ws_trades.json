@@ -1,0 +1,44 @@
+{
+ "channel": "trades",
+ "data": [
+  {
+   "coin": "SOL",
+   "side": "B",
+   "px": "116.57",
+   "sz": "0.5",
+   "time": 1790291901529,
+   "hash": "0x689abdcfadf40eec6a14044522ecb402028b00b548f72dbe0c6369226cf7e8d7",
+   "tid": 135612442882600,
+   "users": [
+    "0xf5d81a135f756ca16544e53c20fc20643ec3ad53",
+    "0xee772e29e31b9972e1b683b04944bd9937ac0304"
+   ]
+  },
+  {
+   "coin": "SOL",
+   "side": "B",
+   "px": "116.57",
+   "sz": "1.29",
+   "time": 1790291901529,
+   "hash": "0x689abdcfadf40eec6a14044522ecb402028b00b548f72dbe0c6369226cf7e8d7",
+   "tid": 975961507033603,
+   "users": [
+    "0xf5d81a135f756ca16544e53c20fc20643ec3ad53",
+    "0x5fa3968b8f255076d1e23ae755fd93222e509627"
+   ]
+  },
+  {
+   "coin": "SOL",
+   "side": "B",
+   "px": "116.57",
+   "sz": "0.09",
+   "time": 1790291901529,
+   "hash": "0x689abdcfadf40eec6a14044522ecb402028b00b548f72dbe0c6369226cf7e8d7",
+   "tid": 813357624616525,
+   "users": [
+    "0xf5d81a135f756ca16544e53c20fc20643ec3ad53",
+    "0x624f23be05221241ba68168024eb95046f7293cb"
+   ]
+  }
+ ]
+}

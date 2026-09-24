@@ -8,6 +8,7 @@ dependencies = [
     "polars",
     "hyperliquid-python-sdk",
     "tzdata>=2026.4",
+    "websockets>=17.1",
 ]
 
 [dependency-groups]
