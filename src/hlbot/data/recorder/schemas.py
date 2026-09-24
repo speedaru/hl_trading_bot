@@ -20,8 +20,8 @@ CTX_SCHEMA = pl.Schema(
     {
         "sample_time": TIME,
         "recv_time": TIME,
-        # Asset contexts carry no exchange timestamp. This is the latest exchange time seen on
-        # the same connection (book/trade messages), as a proxy. Null for REST samples.
+        # Asset contexts carry no exchange timestamp. This is the newest exchange time seen on
+        # any feed (book/trade messages) at sample time, as a proxy. Null for REST samples.
         "exch_time_ref": TIME,
         "age_ms": pl.Int64,  # sample_time - recv_time: how old the value was when sampled
         "source": pl.String,  # "ws" | "rest"
