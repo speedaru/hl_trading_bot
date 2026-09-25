@@ -69,6 +69,12 @@ After completing any meaningful unit of work, stage and commit:
 - A passing test suite: "test: smoke test for engine bar loop"
 - A completed experiment: "research: EXP-003 funding carry baseline comparison"
 
+Commit after every new feature or fix as soon as it is correctly implemented: its tests
+pass and the checks below are clean. Don't wait to be asked, and don't batch several
+features/fixes into one commit — one feature or fix per commit. Never commit work that
+is failing or unverified. Commit only the files belonging to that change
+(`git commit -- <paths>`), so anything else I have staged stays out of it.
+
 Commit format: `<type>: <what>` where type is one of:
   scaffold / feat / fix / test / research / docs / refactor
 
