@@ -229,7 +229,18 @@ def report_frame(reports: list[DayReport], cfg: RecorderConfig) -> pl.DataFrame:
         row |= {k: v for k, v in d.items() if k not in ("coin", "day", "verdict")}
         row["reasons"] = "; ".join(reasons)
         rows.append(row)
-    return pl.DataFrame(rows)
+    # Optional fields are None on days without book/trade data. If every reported day is like
+    # that, polars would infer dtype Null for the column, which numeric ops (round) reject.
+    return pl.DataFrame(rows, schema_overrides=_NULLABLE_DTYPES)
+
+
+_NULLABLE_DTYPES: dict[str, type[pl.DataType]] = {
+    "n_trades": pl.Int64,
+    "skew_median_ms": pl.Float64,
+    "skew_p5_ms": pl.Float64,
+    "skew_p95_ms": pl.Float64,
+    "book_age_p95_s": pl.Float64,
+}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -278,7 +289,8 @@ def main(argv: list[str] | None = None) -> int:
         (pl.col("trades_1m_complete") * 100).round(1).alias("trades_ok%"),
         pl.col("longest_gap_min").round(1).alias("max_gap_min"),
         pl.col("trades_lost_min").round(1).alias("trades_lost_min"),
-        pl.col("skew_median_ms").round(0).alias("skew_ms"),
+        # Stays null (not 0) when there was no book data: 0 would read as a perfect clock.
+        pl.col("skew_median_ms").cast(pl.Float64).round(0).alias("skew_ms"),
         (pl.col("rest_share") * 100).round(1).alias("rest%"),
     )
     with pl.Config(

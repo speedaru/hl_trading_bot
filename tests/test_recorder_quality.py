@@ -3,6 +3,7 @@
 from datetime import date
 from pathlib import Path
 
+import polars as pl
 import pytest
 
 from hlbot.data.recorder import schemas
@@ -184,3 +185,20 @@ def test_cli_exit_code_and_csv(tmp_path: Path) -> None:
     # Asking for a range that includes an empty day reports it as BAD.
     args = ["--config", str(cfg_file), "--data", str(tmp_path)]
     assert main([*args, "--start", "2026-09-20", "--end", "2026-09-21"]) == 1
+
+
+def test_cli_when_no_reported_day_has_book_data(tmp_path: Path) -> None:
+    # Every row then has skew/book stats = None; the report must still print (regression:
+    # polars inferred dtype Null for those columns and round() raised).
+    write(tmp_path, schemas.CTX, ctx_rows(skip_minutes=range(5, 1440)))  # a 5-minute day
+    cfg_file = tmp_path / "rec.toml"
+    cfg_file.write_text(
+        'coins = ["BTC"]\ndata_dir = "unused"\n'
+        '[[books]]\nstream = "book"\nlevels = 1\ninterval_s = 30\n'
+    )
+    out = tmp_path / "q.csv"
+    args = ["--config", str(cfg_file), "--data", str(tmp_path), "--csv", str(out)]
+    assert main([*args, "--start", "2026-09-20", "--end", "2026-09-21"]) == 1
+    df = pl.read_csv(out)
+    assert df.height == 2 and df["verdict"].to_list() == ["BAD", "BAD"]
+    assert df["skew_median_ms"].null_count() == 2  # unknown, not a fake 0 ms
